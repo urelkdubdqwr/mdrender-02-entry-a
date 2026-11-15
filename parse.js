@@ -1,12 +1,16 @@
 import { renderInline, escapeText } from './inline.js';
-import { fence, leadCols, stripCols, isHr, setextLevel, atxHeading } from './blocks.js';
+import { fence, leadCols, stripCols, isHr, setextLevel, atxHeading, blockquote } from './blocks.js';
 
 export function parse(markdown) {
-  const src = String(markdown).replace(/\r\n|\r/g, '\n');
+  return renderBlocks(String(markdown).replace(/\r\n|\r/g, '\n'));
+}
+
+export function renderBlocks(src) {
   const lines = src.split('\n');
   const out = [];
   let i = 0;
   const isBlank = (l) => /^[ \t]*$/.test(l);
+  const isBq = (l) => l[0] === '>' && !/^\d/.test(l) && !/\d[.)]([ \t]|$)/.test(l);
   const decode = (t) => t.replace(/[&<>"']/g, (c) => "&" + ({ '&': "amp;", '<': "lt;", '>': "gt;", '"': "quot;", "'": "#39;" }[c]));
   while (i < lines.length) {
     let raw = lines[i];
@@ -27,6 +31,12 @@ export function parse(markdown) {
     }
     const indent = raw.match(/^ {0,3}/)[0].length;
     const line = raw.slice(indent);
+    if (isBq(line)) {
+      const bq = blockquote(lines, i);
+      out.push('<blockquote>\n' + renderBlocks(bq.inner) + '</blockquote>');
+      i = bq.next;
+      continue;
+    }
     if (isHr(line)) { out.push('<hr>'); i++; continue; }
     const h = atxHeading(line);
     if (h) { out.push('<h' + h.level + '>' + renderInline(h.text) + '</h' + h.level + '>'); i++; continue; }
@@ -38,6 +48,8 @@ export function parse(markdown) {
       const lv = setextLevel(nx);
       if (lv) { setext = lv; i++; break; }
       if (isHr(nx)) break;
+      if (isBq(nx)) break;
+      if (nx.startsWith('```') || nx.startsWith('~~~')) break;
       para.push(lines[i]); i++;
     }
     if (setext) out.push('<h' + setext + '>' + renderInline(para.join('\n')) + '</h' + setext + '>');
