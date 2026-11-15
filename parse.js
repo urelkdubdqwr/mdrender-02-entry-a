@@ -1,4 +1,5 @@
-import { renderInline } from './inline.js';
+import { renderInline, escapeText } from './inline.js';
+import { fence, leadCols, stripCols } from './blocks.js';
 
 export function parse(markdown) {
   const src = String(markdown).replace(/\r\n|\r/g, '\n');
@@ -6,8 +7,6 @@ export function parse(markdown) {
   const out = [];
   let i = 0;
   const isBlank = (l) => /^[ \t]*$/.test(l);
-  const leadCols = (l) => { let c = 0; for (const ch of l) { if (ch === ' ') c++; else if (ch === '\t') c += 4 - (c % 4); else break; } return c; };
-  const stripCols = (l, n) => { let c = 0, k = 0; while (k < l.length && c < n) { const ch = l[k]; if (ch === ' ') c++; else if (ch === '\t') c += 4 - (c % 4); else break; k++; } return l.slice(k); };
   const decode = (t) => t.replace(/[&<>"']/g, (c) => "&" + ({ '&': "amp;", '<': "lt;", '>': "gt;", '"': "quot;", "'": "#39;" }[c]));
   while (i < lines.length) {
     let raw = lines[i];
@@ -21,6 +20,10 @@ export function parse(markdown) {
       while (buf.length && isBlank(buf[buf.length - 1])) buf.pop();
       out.push("<pre><code>" + decode(buf.join("\n")) + "\n</code></pre>");
       continue;
+    }
+    if (raw.trimStart().startsWith('```') || raw.trimStart().startsWith('~~~')) {
+      const f = fence(lines, i);
+      if (f) { out.push(f.html); i = f.next; continue; }
     }
     const indent = raw.match(/^ {0,3}/)[0].length;
     const line = raw.slice(indent);
