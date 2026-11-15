@@ -83,30 +83,28 @@ export function blockquote(lines, i) {
   const inner = [];
   let j = i;
   while (j < lines.length) {
-    const st = bqIndent(lines[j]);
-    if (st !== null) { inner.push(st); j++; continue; }
-    if (blank(lines[j])) {
-      let k = j + 1;
-      while (k < lines.length && blank(lines[k])) k++;
-      break;
-    }
-    const prev = inner.length ? inner[inner.length - 1] : '';
-    if (prev === '') break;
-    if (isHr(lines[j]) || setextLevel(lines[j]) || listItem(lines[j]) || nonPara(lines[j - 1])) break;
-    const st2 = bqStrip(lines[j]);
-    if (st2 !== null) inner.push(st2);
-    else { let t = j; while (t < lines.length && blank(lines[t])) t++; const nxt = t < lines.length && bqIndent(lines[t]) !== null && !isEmptyQuote(lines[t]); inner.push(nxt ? stripCols(lines[j], 4) : lines[j]); }
-    j++;
-    if (nonPara(lines[j - 1]) || isSkipStart(inner[inner.length - 1])) { const last2 = inner[inner.length - 1]; let t = j; while (t < lines.length && blank(lines[t])) t++; if (t < lines.length && bqIndent(lines[t]) !== null && !isEmptyQuote(lines[t])) { j = t; } }
-  }
-  const last = inner.length ? inner[inner.length - 1] : null;
-  if (last !== null && !blank(last) && !nonPara(last) && !setextLevel(last)) {
-    let k = j;
-    while (k < lines.length && blank(lines[k])) k++;
-    if (k < lines.length && bqIndent(lines[k]) !== null && !isEmptyQuote(lines[k])) {
-      for (let t = j; t < k; t++) inner.push('');
-      j = k;
-    }
+    const l = lines[j];
+    const bm = l.match(/^ {0,3}>( ?)([\s\S]*)$/);
+    if (bm) { inner.push(bm[2]); j++; continue; }
+    if (blank(l)) break;
+    if (lazyOk(inner)) { inner.push(l); j++; continue; }
+    break;
   }
   return { inner: inner.join('\n'), next: j };
 }
+function lazyOk(inner) {
+  if (!inner.length) return false;
+  const prev = inner[inner.length - 1];
+  if (blank(prev)) return false;
+  return !startsBlock(prev);
+}
+function startsBlock(l) {
+  const t = stripCols(l, 3);
+  if (isHr(t) || listItem(t)) return true;
+  if (setextLevel(t)) return true;
+  if (atxHeading(t) !== null) return true;
+  if (nonPara(l)) return true;
+  return false;
+}
+
+function isFenceLine2(l) { return /^( {0,3})(`{3,}|~{3,})/.test(l); }
