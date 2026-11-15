@@ -62,49 +62,35 @@ export function atxHeading(line) {
   return { level: m[1].length, text };
 }
 
-const blocks = [];
-function listItem(l) { return /^([-+*]|\d{1,9}[.)])([ \t]+|$)/.test(l); }
 function bqStrip(l) { const m = l.match(/^ {0,3}> ?/); return m ? l.slice(m[0].length) : null; }
-function bqIndent(l) { const m = l.match(/^ {0,3}> ?/); return m ? l.slice(m[0].length) : null; }
-function isEmptyQuote(l) { return /^ {0,3}>[ \t]*$/.test(l); }
-function isMarkerLine(l) { return /^ {0,3}>( |$)/.test(l); }
 function blank(l) { return /^[ \t]*$/.test(l); }
-function codeIndent(l) { const st = bqStrip(l); const rest = st !== null ? st : l; return leadCols(rest) >= 4; }
-function isHrLine(l) { return isHr(bqIndent(l) || ''); }
-function isSkipStart(l) { return nonPara(l); }
-function isFenceLine(l) { const t = bqIndent(l); if (t === null) return false; return /^(`{3,}|~{3,})/.test(t); }
-function nonPara(l) {
-  const t = bqIndent(l); if (t === null) return false;
-  if (isHr(t) || listItem(t) || isFenceLine(l)) return true;
-  if (setextLevel(t)) return true;
-  return atxHeading(t) !== null;
+function fenceOpen(l) { return /^ {0,3}(`{3,}|~{3,})/.test(l); }
+function listStart(l) { return /^([-+*]|\d{1,9}[.)])([ \t]+|$)/.test(l); }
+function paraStop(l) {
+  const t = l.replace(/^ {0,3}/, '');
+  if (/^(#{1,6})([ \t]+|$)/.test(t)) return true;
+  if (fenceOpen(t) || isHr(t)) return true;
+  return false;
 }
+
+// Return the inner text (joined) of a blockquote starting at line i, plus next index.
 export function blockquote(lines, i) {
   const inner = [];
   let j = i;
   while (j < lines.length) {
     const l = lines[j];
-    const bm = l.match(/^ {0,3}>( ?)([\s\S]*)$/);
-    if (bm) { inner.push(bm[2]); j++; continue; }
-    if (blank(l)) break;
-    if (lazyOk(inner)) { inner.push(l); j++; continue; }
-    break;
+    if (/^ {0,3}>/.test(l)) { inner.push(bqStrip(l)); j++; continue; }
+    if (j > i && blank(l)) {
+      const k = j + 1;
+      if (k < lines.length && /^ {0,3}>/.test(lines[k])) { inner.push(''); j++; continue; }
+      break;
+    }
+    if (j === i) break;
+    const prev = inner[inner.length - 1];
+    if (prev === '' || prev === undefined) break;
+    // lazy paragraph continuation (never for indented code)
+    if (leadCols(l) >= 4) break;
+    inner.push(l); j++;
   }
   return { inner: inner.join('\n'), next: j };
 }
-function lazyOk(inner) {
-  if (!inner.length) return false;
-  const prev = inner[inner.length - 1];
-  if (blank(prev)) return false;
-  return !startsBlock(prev);
-}
-function startsBlock(l) {
-  const t = stripCols(l, 3);
-  if (isHr(t) || listItem(t)) return true;
-  if (setextLevel(t)) return true;
-  if (atxHeading(t) !== null) return true;
-  if (nonPara(l)) return true;
-  return false;
-}
-
-function isFenceLine2(l) { return /^( {0,3})(`{3,}|~{3,})/.test(l); }

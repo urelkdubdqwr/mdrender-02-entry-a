@@ -10,7 +10,6 @@ export function renderBlocks(src) {
   const out = [];
   let i = 0;
   const isBlank = (l) => /^[ \t]*$/.test(l);
-  const isBq = (l) => /^ {0,3}>/.test(l);
   const decode = (t) => t.replace(/[&<>"']/g, (c) => "&" + ({ '&': "amp;", '<': "lt;", '>': "gt;", '"': "quot;", "'": "#39;" }[c]));
   while (i < lines.length) {
     let raw = lines[i];
@@ -34,33 +33,26 @@ export function renderBlocks(src) {
     if (isHr(line)) { out.push('<hr>'); i++; continue; }
     const h = atxHeading(line);
     if (h) { out.push('<h' + h.level + '>' + renderInline(h.text) + '</h' + h.level + '>'); i++; continue; }
-    const para = [raw];
-    i++;
-    if (isBq(line)) {
+    if (/^ {0,3}>/.test(raw)) {
       const bq = blockquote(lines, i);
-      const extra = para.slice(1);
-      const inner = extra.length ? extra.join('\n') + '\n' + bq.inner : bq.inner;
-      out.push('<blockquote>\n' + renderBlocks(inner) + '</blockquote>');
+      out.push('<blockquote>\n' + renderBlocks(bq.inner) + '</blockquote>');
       i = bq.next;
       continue;
     }
+    const para = [raw];
+    i++;
     let setext = 0;
-    let paraBq = null;
     while (i < lines.length && !isBlank(lines[i])) {
       const nx = lines[i].replace(/^ {0,3}/, '');
       const lv = setextLevel(nx);
       if (lv) { setext = lv; i++; break; }
       if (isHr(nx)) break;
-      { const pm = nx.match(/^(#{1,6})(?:[ \t]+|$)/); if (pm) break; }
-      { let bqm = 0; for (const ch of nx) { if (ch === ' ') bqm++; else break; } if (bqm >= 4) break; }
-      { const bq2 = blockquote(lines, i); const ex = para.slice(1); paraBq = (ex.length ? ex.join('\n') + '\n' : '') + bq2.inner; i = bq2.next; break; }
+      if (/^(#{1,6})(?:[ \t]+|$)/.test(nx)) break;
+      if (/^ {0,3}>/.test(lines[i])) break;
+      { let c = 0; for (const ch of nx) { if (ch === ' ') c++; else break; } if (c >= 4) break; }
       para.push(lines[i]); i++;
     }
-    if (paraBq !== null) {
-      if (setext) out.push('<h' + setext + '>' + renderInline(para.join('\n')) + '</h' + setext + '>');
-      out.push('<p>' + renderInline(para.join('\n')) + '</p>');
-      out.push('<blockquote>\n' + renderBlocks(paraBq) + '</blockquote>');
-    } else if (setext) out.push('<h' + setext + '>' + renderInline(para.join('\n')) + '</h' + setext + '>');
+    if (setext) out.push('<h' + setext + '>' + renderInline(para.join('\n')) + '</h' + setext + '>');
     else out.push('<p>' + renderInline(para.join('\n')) + '</p>');
   }
   return out.join('\n') + (out.length ? '\n' : '');
