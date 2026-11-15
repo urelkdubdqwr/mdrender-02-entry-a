@@ -27,3 +27,22 @@ export function fence(lines, i) {
   const html = '<pre><code' + cls + '>' + escapeText(buf.join('\n')) + (buf.length ? '\n' : '') + '</code></pre>';
   return { html, next: j + 1 };
 }
+
+export function isHr(line) {
+  const t = line.replace(/[ 	]/g, '');
+  return /^(\*{3,}|-{3,}|_{3,})$/.test(t);
+}
+export function setextLevel(line) {
+  const t = line.trim();
+  if (/^=+$/.test(t)) return 1;
+  if (/^-+$/.test(t)) return 2;
+  return 0;
+}
+export function atxHeading(line) {
+  const m = line.match(/^(#{1,6})([ \t]+)(.*)$/);
+  if (!m) { const e = line.match(/^(#{1,6})[ \t]*$/); if (e) return { level: e[1].length, text: '' }; return null; }
+  let text = m[3].replace(/[ \t]+$/, '');
+  const c = text.match(/[ \t]+#+$/);
+  if (c) text = text.slice(0, text.length - c[0].length);
+  return { level: m[1].length, text };
+}

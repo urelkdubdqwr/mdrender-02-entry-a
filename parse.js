@@ -1,5 +1,5 @@
 import { renderInline, escapeText } from './inline.js';
-import { fence, leadCols, stripCols } from './blocks.js';
+import { fence, leadCols, stripCols, isHr, setextLevel, atxHeading } from './blocks.js';
 
 export function parse(markdown) {
   const src = String(markdown).replace(/\r\n|\r/g, '\n');
@@ -27,18 +27,21 @@ export function parse(markdown) {
     }
     const indent = raw.match(/^ {0,3}/)[0].length;
     const line = raw.slice(indent);
-    if (/^#{1,6}([ \t]|$)/.test(line)) {
-      const m = line.match(/^(#{1,6})([ \t]*)(.*)$/);
-      const level = m[1].length;
-      let text = m[3].replace(/[ \t]+#+[ \t]*$/, '').replace(/[ \t]+$/, '');
-      out.push('<h' + level + '>' + renderInline(text) + '</h' + level + '>');
-      i++;
-      continue;
-    }
+    if (isHr(line)) { out.push('<hr>'); i++; continue; }
+    const h = atxHeading(line);
+    if (h) { out.push('<h' + h.level + '>' + renderInline(h.text) + '</h' + h.level + '>'); i++; continue; }
     const para = [raw];
     i++;
-    while (i < lines.length && !isBlank(lines[i])) { para.push(lines[i]); i++; }
-    out.push('<p>' + renderInline(para.join('\n')) + '</p>');
+    let setext = 0;
+    while (i < lines.length && !isBlank(lines[i])) {
+      const nx = lines[i].replace(/^ {0,3}/, '');
+      const lv = setextLevel(nx);
+      if (lv) { setext = lv; i++; break; }
+      if (isHr(nx)) break;
+      para.push(lines[i]); i++;
+    }
+    if (setext) out.push('<h' + setext + '>' + renderInline(para.join('\n')) + '</h' + setext + '>');
+    else out.push('<p>' + renderInline(para.join('\n')) + '</p>');
   }
   return out.join('\n') + (out.length ? '\n' : '');
 }
