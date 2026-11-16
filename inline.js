@@ -1,4 +1,3 @@
-const named=new Set(['nbsp','amp','copy','AElig','Dcaron','frac34','HilbertSpace','DifferentialD','ClockwiseContourIntegral','ngE','ouml','hi']);
 const win={0xFFFD:0xFFFD};
 function decodeEntity(src){
   const m=/^&(#\d{1,7}|#[xX][0-9a-fA-F]{1,6}|[a-zA-Z][a-zA-Z0-9]{1,31});/.exec(src);
@@ -9,9 +8,8 @@ function decodeEntity(src){
     else { if(body.length<2) return null; cp=parseInt(body.slice(1),10); }
     to = (cp===0||cp>0x10FFFF||(cp>=0xD800&&cp<=0xDFFF))?0xFFFD:cp;
   } else {
-    if(!named.has(body)) return null;
   }
-  return {raw:m[0],len:m[0].length,value: to===null?('&'+body+';'):String.fromCodePoint(to)};
+  return {raw:m[0],len:m[0].length,value: to===null?m[0]:String.fromCodePoint(to)};
 }
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export function escapeLt(text) {
@@ -27,6 +25,10 @@ export function escapeText(text) {
       if (d) { out += d.value; i += d.len; continue; }
       out += '&amp;'; i++; continue;
     }
+    if (ch === '<') { out += '&lt;'; i++; continue; }
+    if (ch === '>') { out += '&gt;'; i++; continue; }
+    if (ch === '"') { out += '&quot;'; i++; continue; }
+    if (ch === "'") { out += '&#39;'; i++; continue; }
     out += ch; i++;
   }
   return out;
