@@ -47,7 +47,17 @@ export function renderInline(text, refs) {
       if (close >= 0) { out += renderCode(text.slice(i + n, close)); i = close + n; continue; }
       out += escapeText(text.slice(i, i + n)); i += n; continue;
     }
+    if (ch === '~') {
+      const n = runLen(text, i, '~');
+      if (n === 1 || n === 2) {
+        const close = findTilde(text, i + n, n);
+        if (close >= 0) { out += '<del>' + renderInline(text.slice(i + n, close), refs) + '</del>'; i = close + n; continue; }
+      }
+      out += escapeText(text.slice(i, i + n)); i += n; continue;
+    }
     if (ch === '<') {
+      const a = autoLink(text, i);
+      if (a) { out += a.html; i = a.end; continue; }
       const e = angleEnd(text, i);
       if (e > i) { out += text.slice(i, e); i = e; continue; }
     }
@@ -74,6 +84,12 @@ function findTick(text, from, n) {
   return -1;
 }
 
+function findTilde(text, from, n) {
+  for (let j = from; j < text.length; j++) {
+    if (text[j] === '~') { const k = runLen(text, j, '~'); if (k === n) return j; j += k - 1; }
+  }
+  return -1;
+}
 function renderCode(c) {
   let t = c.replace(/\n/g, ' ');
   if (t.length > 2 && t[0] === ' ' && t[t.length - 1] === ' ' && /[^ ]/.test(t)) t = t.slice(1, -1);
@@ -83,4 +99,12 @@ function angleEnd(text, i) {
   const re = /^<(\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?|![A-Za-z][^<>]*|!--[\s\S]*?--|\?[\s\S]*?\?)>/;
   const m = re.exec(text.slice(i));
   return m ? i + m[0].length : -1;
+}
+
+function autoLink(text, i) {
+  const m = /^<([A-Za-z][A-Za-z0-9+.\-]{1,31}:[^<>\x00-\x20]*)>/.exec(text.slice(i));
+  if (m) { const u = escapeText(m[1]); return { html: '<a href="' + u + '">' + u + '</a>', end: i + m[0].length }; }
+  const e = /^<([A-Za-z0-9.!#$%&'*+/=?^_`{|}~\-]+@[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?)*)>/.exec(text.slice(i));
+  if (e) { const a = escapeText(e[1]); return { html: '<a href="mailto:' + a + '">' + a + '</a>', end: i + e[0].length }; }
+  return null;
 }
