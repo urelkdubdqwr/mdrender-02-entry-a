@@ -39,6 +39,68 @@ export function escapeText(text) {
   }
   return out;
 }
+
+const PUNCTS = new Set('!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'.split(''));
+function isWs(c){ return c===undefined || c===' ' || c==='\t' || c==='\n'; }
+function isPunct(c){ return c!==undefined && PUNCTS.has(c); }
+function flank(text, runStart, runEnd, ch){
+  const before = runStart>0 ? text[runStart-1] : ' ';
+  const after = runEnd<text.length ? text[runEnd] : ' ';
+  const wsB=isWs(before), wsA=isWs(after), pB=isPunct(before), pA=isPunct(after);
+  const left = !wsA && (!pA || wsB || pB);
+  const right = !wsB && (!pB || wsA || pA);
+  if(ch==='*') return {open:left, close:right};
+  return {open:left && (!right || pB), close:right && (!left || pA)};
+}
+function runAt(text, i, ch){ let n=0; while(text[i+n]===ch) n++; return n; }
+
+function skipBracket(text, j){
+  let d=0,k=j+1;
+  while(k<text.length){ if(text[k]==='\\'){k+=2;continue;} if(text[k]==='[')d++; else if(text[k]===']'){ if(d===0) return {end:k+1}; d--; } k++; }
+  return null;
+}
+
+function skipInline(text, i){
+  const ch=text[i];
+  if(ch==='\\' && i+1<text.length) return i+2;
+  if(ch==='`'){ const n=runLen(text,i,'`'); const cl=findTick(text,i+n,n); return cl>=0? cl+n : i+n; }
+  if(ch==='[' || ch==='!'){ const st=skipBracket(text, ch==='!'?i+1:i); if(st) return st.end; }
+  if(ch==='<'){ const a=autoLink(text,i); if(a) return a.end; const e=angleEnd(text,i); if(e>i) return e; }
+  return i+1;
+}
+export function tryEmphasis(text, i, refs){
+  const ch=text[i];
+  const run=runAt(text,i,ch);
+  let use=0;
+  if(run>=3 && text.slice(i,i+3)===ch+ch+ch) use=3;
+  else if(run>=2) use=2;
+  else use=1;
+  const f=flank(text,i,i+run,ch);
+  if(!f.open) return null;
+  const body=[]; const stack=[];
+  let j=i+run;
+  while(j<text.length){
+    const c=text[j];
+    if(c==='\\'||c==='`'||c==='['||c==='!'||c==='<'){ const nj=skipInline(text,j); if(nj!==j+1){ body.push(text.slice(j,nj)); j=nj; continue; } }
+    if(c===ch){
+      const cr=runAt(text,j,ch);
+      const cf=flank(text,j,j+cr,ch);
+      if(cf.close && cr>=use){ break; }
+      body.push(text.slice(j,j+cr)); j+=cr; continue;
+    }
+    body.push(c); j++;
+  }
+  if(j>=text.length) return null;
+  const cr=runAt(text,j,ch);
+  const inner=text.slice(i+run, j);
+  return { html: wrap(ch, use, renderInline(inner, refs)), end: j+use };
+}
+function wrap(ch, use, html){
+  if(use>=3) return '<em><strong>'+html+'</strong></em>';
+  if(use===2) return '<strong>'+html+'</strong>';
+  return '<em>'+html+'</em>';
+}
+
 export function renderInline(text, refs) {
   let out = '';
   let i = 0;
@@ -220,6 +282,12 @@ function altText(label) {
   return out.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+    if (ch === '*' || ch === '_') {
+      const em = tryEmphasis(text, i, refs);
+      if (em) { out += em.html; i = em.end; continue; }
+      const n = runLen(text, i, ch);
+      out += escapeText(text.slice(i, i + n)); i += n; continue;
+    }
     if (ch === '&') { const d = decodeEntity(text.slice(i)); const n = d ? d.len : 1; out += escapeText(text.slice(i, i + n)); i += n; continue; }
     if (ch === '[') { const li = parseLink(text, i, refs); if (li) { out += li.html; i = li.end; continue; } }
     if (ch === '!') { const im = parseLink(text, i + 1, refs, true); if (im) { out += im.html; i = im.end; continue; } }
