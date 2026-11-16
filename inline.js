@@ -220,6 +220,13 @@ function altText(label) {
       const e = angleEnd(text, i);
       if (e > i) { out += text.slice(i, e); i = e; continue; }
     }
+    if (ch === '\n') {
+      let j = i - 1, sp = 0;
+      while (j >= 0 && text[j] === ' ') { sp++; j--; }
+      if (j >= 0 && text[j] === '\\') { out = out.replace(/\\$/, '') + '<br>'; i++; continue; }
+      if (sp >= 1) { out = out.slice(0, out.length - sp) + '<br>'; i++; continue; }
+      out += '\n'; i++; continue;
+    }
     out += escapeText(ch); i++;
   }
   return out;
