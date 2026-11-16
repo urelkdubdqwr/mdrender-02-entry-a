@@ -88,8 +88,9 @@ export function blockquote(lines, i) {
     if (j === i) break;
     const prev = inner[inner.length - 1];
     if (prev === '' || prev === undefined) break;
-    // lazy paragraph continuation (never for indented code)
+    // lazy paragraph continuation (never for indented code); must stay in same paragraph
     if (leadCols(l) >= 4) break;
+    if (/^ {0,3}(#{1,6})([ \t]+|$)/.test(l) || isHr(l.replace(/^ {0,3}/, ''))) break;
     inner.push(l); j++;
   }
   return { inner: inner.join('\n'), next: j };
