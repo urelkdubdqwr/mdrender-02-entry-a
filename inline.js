@@ -37,7 +37,9 @@ export function renderInline(text, refs) {
   while (i < text.length) {
     const ch = text[i];
     if (ch === '\\' && i + 1 < text.length) {
-      out += '\\' + text[i + 1]; i += 2; continue;
+      const n = text[i + 1];
+      if ('\\`*{}[]()#+-.!_>~|"$%&\'/:;<=?@^'.includes(n)) { out += escapeText(n); i += 2; continue; }
+      out += '\\'; i += 1; continue;
     }
     if (ch === '`') {
       const n = runLen(text, i, '`');
