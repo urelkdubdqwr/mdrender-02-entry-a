@@ -41,8 +41,9 @@ export function escapeText(text) {
 }
 
 const PUNCTS = new Set('!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'.split(''));
+const UNICODE_PUNCT = /[\u2000-\u206F\u2E00-\u2E7F\u3000-\u303F\u00A1\u00A7\u00AB\u00B6\u00B7\u00BB\u00BF\u2010-\u2027\u2030-\u205E]/u;
 function isWs(c){ return c===undefined || c===' ' || c==='\t' || c==='\n'; }
-function isPunct(c){ return c!==undefined && PUNCTS.has(c); }
+function isPunct(c){ return c!==undefined && (PUNCTS.has(c) || UNICODE_PUNCT.test(c)); }
 function flank(text, runStart, runEnd, ch){
   const before = runStart>0 ? text[runStart-1] : ' ';
   const after = runEnd<text.length ? text[runEnd] : ' ';
