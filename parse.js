@@ -6,16 +6,16 @@ import { fence, leadCols, stripCols, isHr, setextLevel, atxHeading, blockquote, 
 export function parse(markdown) {
   const src = String(markdown).replace(/\r\n|\r/g, '\n');
   const defs = parseRefDefs(src.split('\n'));
-  return renderBlocks(src, defs.map);
+  return renderBlocks(src, defs.map, defs.pass);
 }
 
-export function renderBlocks(src, refs) {
+export function renderBlocks(src, refs, pass) {
   const lines = src.split('\n');
   const out = [];
   let i = 0;
   const isBlank = (l) => /^[ \t]*$/.test(l);
   const decode = (t) => t.replace(/[&<>"']/g, (c) => "&" + ({ '&': "amp;", '<': "lt;", '>': "gt;", '"': "quot;", "'": "#39;" }[c]));
-  const defs = refs === undefined ? parseRefDefs(lines) : { map: {}, pass: new Set() };
+  const defs = refs === undefined ? parseRefDefs(lines) : { map: refs, pass: pass || new Set() };
   while (i < lines.length) {
     let raw = lines[i];
     if (isBlank(raw)) { i++; continue; }
