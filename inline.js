@@ -220,6 +220,11 @@ function altText(label) {
       const e = angleEnd(text, i);
       if (e > i) { out += text.slice(i, e); i = e; continue; }
     }
+    if (ch === 'w' || ch === 'h' || ch === '@') {
+      const g = gfmAutoLink(text, i);
+      if (g) { out += g.html; i = g.end; continue; }
+    }
+    if (text[i] === '<') { /* noop */ }
     if (ch === '\n') {
       let j = i - 1, sp = 0;
       while (j >= 0 && text[j] === ' ') { sp++; j--; }
@@ -267,6 +272,33 @@ function angleEnd(text, i) {
   return m ? i + m[0].length : -1;
 }
 
+function gfmAutoLink(text, i) {
+  if (text[i] !== 'w' && text[i] !== 'h') {
+    const e = /^([\w.!#$%&'*+/=?^`{|}~\-]+@[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9\-]{0,61}[A-Za-z0-9])?)+)/.exec(text.slice(i));
+    if (e && (i === 0 || !/[A-Za-z0-9_\-.]/.test(text[i - 1]))) {
+      const a = e[1]; return { html: '<a href="mailto:' + a + '">' + a + '</a>', end: i + a.length };
+    }
+    return null;
+  }
+  let m = null;
+  if (text.startsWith('www.', i)) {
+    m = /^www\.[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)+/.exec(text.slice(i));
+  } else if (text.startsWith('http://', i) || text.startsWith('https://', i)) {
+    const pfx = text.startsWith('https://', i) ? 8 : 7;
+    if (!/[A-Za-z0-9_\-]/.test(text[i - 1] || '')) {
+      m = new RegExp('^' + text.slice(i, i + pfx) + '[A-Za-z0-9\\-]+(?:\\.[A-Za-z0-9\\-]+)+').exec(text.slice(i));
+    }
+  }
+  if (!m) return null;
+  let u = m[0], end = i + u.length;
+  while (end < text.length && !' \t\n<'.includes(text[end])) {
+    if ('?!.,:*_~'.includes(text[end]) && (end + 1 >= text.length || ' \t\n<'.includes(text[end + 1]))) break;
+    end++; u = m[0] + text.slice(i + m[0].length, end);
+  }
+  while (u.endsWith(')') && (u.match(/\(/g) || []).length < (u.match(/\)/g) || []).length) { u = u.slice(0, -1); end--; }
+  const disp = u, href = disp.startsWith('www.') ? 'http://' + disp : disp;
+  return { html: '<a href="' + escapeText(href) + '">' + escapeText(disp) + '</a>', end };
+}
 function autoLink(text, i) {
   const m = /^<([A-Za-z][A-Za-z0-9+.\-]{1,31}:[^<>\x00-\x20]*)>/.exec(text.slice(i));
   if (m) { const u = escapeText(m[1]); return { html: '<a href="' + u + '">' + u + '</a>', end: i + m[0].length }; }
