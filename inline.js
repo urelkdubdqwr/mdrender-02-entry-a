@@ -1,4 +1,18 @@
-const ENT = /&(?:#\d{1,7}|#[xX][0-9a-fA-F]{1,6}|[a-zA-Z][a-zA-Z0-9]{1,31});/;
+const named=new Set(['nbsp','amp','copy','AElig','Dcaron','frac34','HilbertSpace','DifferentialD','ClockwiseContourIntegral','ngE','ouml','hi']);
+const win={0xFFFD:0xFFFD};
+function decodeEntity(src){
+  const m=/^&(#\d{1,7}|#[xX][0-9a-fA-F]{1,6}|[a-zA-Z][a-zA-Z0-9]{1,31});/.exec(src);
+  if(!m) return null;
+  const body=m[1]; let cp=null,to=null;
+  if(body[0]==='#'){
+    if(body[1]==='x'||body[1]==='X') cp=parseInt(body.slice(2),16);
+    else { if(body.length<2) return null; cp=parseInt(body.slice(1),10); }
+    to = (cp===0||cp>0x10FFFF||(cp>=0xD800&&cp<=0xDFFF))?0xFFFD:cp;
+  } else {
+    if(!named.has(body)) return null;
+  }
+  return {raw:m[0],len:m[0].length,value: to===null?('&'+body+';'):String.fromCodePoint(to)};
+}
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export function escapeLt(text) {
   return text.replace(/</g, '&lt;');
@@ -9,11 +23,10 @@ export function escapeText(text) {
   while (i < text.length) {
     const ch = text[i];
     if (ch === '&') {
-      const m = ENT.exec(text.slice(i));
-      if (m && m.index === 0) { out += m[0]; i += m[0].length; continue; }
+      const d = decodeEntity(text.slice(i));
+      if (d) { out += d.value; i += d.len; continue; }
       out += '&amp;'; i++; continue;
     }
-    if (ch === '<') { out += '&lt;'; i++; continue; }
     out += ch; i++;
   }
   return out;
@@ -23,14 +36,18 @@ export function renderInline(text, refs) {
   let i = 0;
   while (i < text.length) {
     const ch = text[i];
-    if (ch === '\\' && i + 1 < text.length && isCodeSpecial(text[i + 1])) {
+    if (ch === '\\' && i + 1 < text.length) {
       out += '\\' + text[i + 1]; i += 2; continue;
     }
     if (ch === '`') {
       const n = runLen(text, i, '`');
       const close = findTick(text, i + n, n);
-      if (close >= 0) { out += text.slice(i, close + n); i = close + n; continue; }
+      if (close >= 0) { out += renderCode(text.slice(i + n, close)); i = close + n; continue; }
       out += escapeText(text.slice(i, i + n)); i += n; continue;
+    }
+    if (ch === '<') {
+      const e = angleEnd(text, i);
+      if (e > i) { out += text.slice(i, e); i = e; continue; }
     }
     out += escapeText(ch); i++;
   }
@@ -39,7 +56,6 @@ export function renderInline(text, refs) {
 export function finishInline(text, refs) {
   return text.replace(/\\([\\`*{}\[\]()#+\-.!_>~|"$%&'/:;<=?@^])/g, '$1');
 }
-function isCodeSpecial(c) { return c === '`' || c === '\\' || c === '<' || c === '&'; }
 function runLen(text, i, ch) {
   let n = 0;
   while (text[i + n] === ch) n++;
@@ -54,4 +70,15 @@ function findTick(text, from, n) {
     }
   }
   return -1;
+}
+
+function renderCode(c) {
+  let t = c.replace(/\n/g, ' ');
+  if (t.length > 2 && t[0] === ' ' && t[t.length - 1] === ' ' && /[^ ]/.test(t)) t = t.slice(1, -1);
+  return '<code>' + escapeText(t) + '</code>';
+}
+function angleEnd(text, i) {
+  const re = /^<(\/?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>]*)?|![A-Za-z][^<>]*|!--[\s\S]*?--|\?[\s\S]*?\?)>/;
+  const m = re.exec(text.slice(i));
+  return m ? i + m[0].length : -1;
 }
