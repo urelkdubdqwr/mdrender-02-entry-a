@@ -8,8 +8,9 @@ function decodeEntity(src){
     else { if(body.length<2) return null; cp=parseInt(body.slice(1),10); }
     to = (cp===0||cp>0x10FFFF||(cp>=0xD800&&cp<=0xDFFF))?0xFFFD:cp;
   } else {
+    return {raw:m[0],len:m[0].length,value:m[0]};
   }
-  return {raw:m[0],len:m[0].length,value: to===null?m[0]:String.fromCodePoint(to)};
+  return {raw:m[0],len:m[0].length,value:String.fromCodePoint(to)};
 }
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export function escapeLt(text) {
@@ -22,7 +23,12 @@ export function escapeText(text) {
     const ch = text[i];
     if (ch === '&') {
       const d = decodeEntity(text.slice(i));
-      if (d) { out += d.value; i += d.len; continue; }
+      if (d) {
+        const v = d.value;
+        if (v === d.raw) { out += v; }
+        else { for (const c of v) out += ESC[c] || c; }
+        i += d.len; continue;
+      }
       out += '&amp;'; i++; continue;
     }
     if (ch === '<') { out += '&lt;'; i++; continue; }
@@ -214,6 +220,7 @@ function altText(label) {
   return out.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+    if (ch === '&') { const d = decodeEntity(text.slice(i)); const n = d ? d.len : 1; out += escapeText(text.slice(i, i + n)); i += n; continue; }
     if (ch === '[') { const li = parseLink(text, i, refs); if (li) { out += li.html; i = li.end; continue; } }
     if (ch === '!') { const im = parseLink(text, i + 1, refs, true); if (im) { out += im.html; i = im.end; continue; } }
     if (ch === '<') {
