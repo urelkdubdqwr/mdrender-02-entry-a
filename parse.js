@@ -1,4 +1,5 @@
 import { renderInline, escapeText } from './inline.js';
+import { htmlBlock } from './html_blocks.js';
 import { fence, leadCols, stripCols, isHr, setextLevel, atxHeading, blockquote, listBlock } from './blocks.js';
 
 export function parse(markdown) {
@@ -27,6 +28,10 @@ export function renderBlocks(src) {
     if (raw.trimStart().startsWith('```') || raw.trimStart().startsWith('~~~')) {
       const f = fence(lines, i);
       if (f) { out.push(f.html); i = f.next; continue; }
+    }
+    if (leadCols(raw) < 4) {
+      const hb = htmlBlock(lines, i, isBlank);
+      if (hb) { out.push(hb.html); i = hb.next === 0 ? i + 1 : hb.next; continue; }
     }
     const indent = raw.match(/^ {0,3}/)[0].length;
     const line = raw.slice(indent);
@@ -90,3 +95,4 @@ function addPrefix(lines, blank) {
   }
   return o;
 }
+
