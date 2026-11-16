@@ -1,5 +1,5 @@
 import { renderInline, escapeText } from './inline.js';
-import { fence, leadCols, stripCols, isHr, setextLevel, atxHeading, blockquote } from './blocks.js';
+import { fence, leadCols, stripCols, isHr, setextLevel, atxHeading, blockquote, listBlock } from './blocks.js';
 
 export function parse(markdown) {
   return renderBlocks(String(markdown).replace(/\r\n|\r/g, '\n'));
@@ -33,6 +33,26 @@ export function renderBlocks(src) {
     if (isHr(line)) { out.push('<hr>'); i++; continue; }
     const h = atxHeading(line);
     if (h) { out.push('<h' + h.level + '>' + renderInline(h.text) + '</h' + h.level + '>'); i++; continue; }
+    if (/^ {0,3}[-+*]([ \t]|$)/.test(raw) || /^ {0,3}\d{1,9}[.)]([ \t]|$)/.test(raw)) {
+      const lb = listBlock(lines, i);
+      const tag = lb.ordered ? 'ol' : 'ul';
+      const startAttr = lb.ordered && lb.start !== 1 ? ' start="' + lb.start + '"' : '';
+      const parts = [];
+      for (const segs of lb.items) {
+        const st = []; const it = [];
+        for (let si = 0; si < segs.length; si++) {
+          let ls = segs[si].lines;
+          if (ls.length) ls = addPrefix(ls, segs[si].blank);
+          st.push(ls); it.push(renderBlocks(ls.join('\n')));
+        }
+        const body = it.join('\n');
+        if (lb.loose) parts.push('<li>' + body + '\n</li>');
+        else parts.push('<li>' + body.replace(/<p>([\s\S]*?)<\/p>\n?(?=<|$)/, '$1') + '</li>');
+      }
+      out.push('<' + tag + startAttr + '>\n' + parts.join('\n') + '\n</' + tag + '>');
+      i = lb.next;
+      continue;
+    }
     if (/^ {0,3}>/.test(raw)) {
       const bq = blockquote(lines, i);
       out.push('<blockquote>\n' + renderBlocks(bq.inner) + '</blockquote>');
@@ -56,4 +76,17 @@ export function renderBlocks(src) {
     else out.push('<p>' + renderInline(para.join('\n')) + '</p>');
   }
   return out.join('\n') + (out.length ? '\n' : '');
+}
+
+function taskPrefix(line) {
+  return line.replace(/^\[([ xX])\][ \t]+/, (m, c) => '<input ' + (c === ' ' ? '' : 'checked="" ') + 'disabled="" type="checkbox"> ');
+}
+function addPrefix(lines, blank) {
+  const o = lines.slice();
+  for (let k = 0; k < o.length; k++) {
+    if (!blank && k === 0) o[k] = taskPrefix(o[k]);
+    if (o[k] !== '') o[k] = '> ' + o[k];
+    else o[k] = '>';
+  }
+  return o;
 }
