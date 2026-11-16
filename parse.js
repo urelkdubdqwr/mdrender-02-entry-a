@@ -4,10 +4,31 @@ import { parseRefDefs } from './lib/refdefs.js';
 import { tableBlock } from './lib/tables.js';
 import { fence, leadCols, stripCols, isHr, setextLevel, atxHeading, blockquote, listBlock } from './blocks.js';
 
+function expandLeadingTabs(l) {
+  let col = 0, k = 0, out = '';
+  const pushTab = () => { const n = 4 - (col % 4); out += ' '.repeat(n); col += n; k++; };
+  while (k < l.length) {
+    const ch = l[k];
+    if (ch === ' ') { out += ' '; col++; k++; continue; }
+    if (ch === '\t') { pushTab(); continue; }
+    if (ch === '>' && /^ *>/.test(l.slice(k))) { out += '>'; col++; k++; continue; }
+    const rest = l.slice(k);
+    const lm = rest.match(/^(\d{1,9}[.)]|[-+*])(?=[ \t])/);
+    if (col > 0 || k === 0) {
+      if (lm) { out += lm[0]; col += lm[0].length; k += lm[0].length; continue; }
+      const hm = rest.match(/^#{1,6}(?=[ \t])/);
+      if (k === 0 && hm) { out += hm[0]; col += hm[0].length; k += hm[0].length; continue; }
+    }
+    break;
+  }
+  return out + l.slice(k);
+}
+
 export function parse(markdown) {
   const src = String(markdown).replace(/\r\n|\r/g, '\n');
-  const defs = parseRefDefs(src.split('\n'));
-  return renderBlocks(src, defs.map, defs.pass);
+  const lines = src.split('\n').map(expandLeadingTabs);
+  const defs = parseRefDefs(lines);
+  return renderBlocks(lines.join('\n'), defs.map, defs.pass);
 }
 
 export function renderBlocks(src, refs, pass) {
@@ -51,14 +72,14 @@ export function renderBlocks(src, refs, pass) {
       const startAttr = lb.ordered && lb.start !== 1 ? ' start="' + lb.start + '"' : '';
       const parts = [];
       for (const segs of lb.items) {
-        const st = []; const it = [];
+        const it = [];
         for (let si = 0; si < segs.length; si++) {
           let ls = segs[si].lines;
-          if (ls.length) ls = addPrefix(ls, segs[si].blank);
-          st.push(ls); it.push(renderBlocks(ls.join('\n'), refs));
+          if (ls.length && (ls[0] === '> ' || ls[0] === '>')) ls = addPrefix(ls, segs[si].blank);
+          it.push(renderBlocks(ls.join('\n'), refs));
         }
         const body = it.join('\n');
-        if (lb.loose) parts.push('<li>' + body + '\n</li>');
+        if (lb.loose) parts.push('<li>' + body.replace(/\n$/, '') + '\n</li>');
         else parts.push('<li>' + body.replace(/<p>([\s\S]*?)<\/p>\n?(?=<|$)/, '$1') + '</li>');
       }
       out.push('<' + tag + startAttr + '>\n' + parts.join('\n') + '\n</' + tag + '>');
@@ -80,6 +101,7 @@ export function renderBlocks(src, refs, pass) {
       if (lv) { setext = lv; i++; break; }
       if (isHr(nx)) break;
       if (/^(#{1,6})(?:[ \t]+|$)/.test(nx)) break;
+      if (/^([-+*])(?:[ \t]+|$)/.test(nx) || /^(\d{1,9})[.)](?:[ \t]+|$)/.test(nx)) { const om=nx.match(/^(\d{1,9})[.)]/); if(!om||om[1]==='1') break; }
       if (/^ {0,3}>/.test(lines[i])) break;
       { let c = 0; for (const ch of nx) { if (ch === ' ') c++; else break; } if (c >= 4) break; }
       para.push(lines[i]); i++;

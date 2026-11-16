@@ -62,7 +62,7 @@ export function atxHeading(line) {
   return { level: m[1].length, text };
 }
 
-function bqStrip(l) { const m = l.match(/^ {0,3}> ?/); return m ? l.slice(m[0].length) : null; }
+function bqStrip(l) { const m = l.match(/^ {0,3}>/); return m ? l.slice(m[0].length).replace(/^[ \t]/,'') : null; }
 function blank(l) { return /^[ \t]*$/.test(l); }
 function fenceOpen(l) { return /^ {0,3}(`{3,}|~{3,})/.test(l); }
 function listStart(l) { return /^([-+*]|\d{1,9}[.)])([ \t]+|$)/.test(l); }
@@ -123,6 +123,7 @@ export function listBlock(lines, i) {
       if (!(matchListMarker(lines[k]) !== null && matchListMarker(lines[k]).indent <= first.indent)) { j = k; break; }
       loose = true; prevBlank = true; j = k; continue;
     }
+    if (lines[j].trim() !== '' && lines[j][0] === '>') break;
     const mk = matchListMarker(lines[j]);
     if (!(mk && mk.ordered === ordered && mk.bullet === bullet && mk.indent <= first.indent + 3)) break;
     const pre = mk.prefix;
@@ -137,7 +138,7 @@ export function listBlock(lines, i) {
         if (k < lines.length && matchListMarker(lines[k]) !== null && matchListMarker(lines[k]).indent <= first.indent) { j = k; break; }
         if (k >= lines.length) { j = k; break; }
         if (k === j) { j = k; continue; }
-        seg.push(''); prevBlank = true; j = k;
+        seg.push(''); loose = true; prevBlank = true; j = k;
         if (leadCols(lines[k]) < pre && !matchListMarker(lines[k])) { j = k; break; }
         continue;
       }
