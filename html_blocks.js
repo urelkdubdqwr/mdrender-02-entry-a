@@ -34,7 +34,7 @@ export function htmlBlock(lines, i, isBlank) {
     }
     if (BLOCK_TAGS.has(om[1].toLowerCase())) return blankPend(lines, i, isBlank);
   }
-  if ((OPEN_TAG.test(line) || CLOSE_TAG.test(line)) && line.indexOf('>') > 0) return blankPend(lines, i, isBlank);
+  if (completeTag(line)) return blankPend(lines, i, isBlank);
   return null;
 }
 
@@ -53,6 +53,26 @@ function blankPend(lines, i, isBlank) {
   const n = lines.length;
   for (let k = i + 1; k < n; k++) if (isBlank(lines[k])) return { html: join(lines, i, k), next: k };
   return { html: join(lines, i, n), next: n };
+}
+
+// type 7: a complete open/close tag on the line, ignoring quoted > and <>-free text.
+export function completeTag(line) {
+  const t = strip3(line);
+  let j = 0;
+  if (t[j] !== '<') return false;
+  if (t[1] === '/') j = 2; else j = 1;
+  if (!/[a-zA-Z]/.test(t[j])) return false;
+  while (j < t.length && /[a-zA-Z0-9-]/.test(t[j])) j++;
+  if (!/[ \t/]/.test(t[j]) && t[j] !== '>') return false;
+  let q = 0;
+  for (; j < t.length; j++) {
+    const c = t[j];
+    if (q) { if (c === q) q = 0; continue; }
+    if (c === '"' || c === "'") { q = c; continue; }
+    if (c === '<') return false;
+    if (c === '>') return true;
+  }
+  return false;
 }
 
 function join(lines, a, b) {

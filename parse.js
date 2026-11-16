@@ -1,5 +1,5 @@
 import { renderInline, finishInline, escapeText } from './inline.js';
-import { htmlBlock } from './html_blocks.js';
+import { htmlBlock, completeTag } from './html_blocks.js';
 import { parseRefDefs } from './lib/refdefs.js';
 import { tableBlock } from './lib/tables.js';
 import { fence, leadCols, stripCols, isHr, setextLevel, atxHeading, blockquote, listBlock } from './blocks.js';
@@ -37,7 +37,7 @@ export function renderBlocks(src, refs, pass) {
     }
     if (leadCols(raw) < 4) {
       const hb = htmlBlock(lines, i, isBlank);
-      if (hb) { out.push(hb.html); i = hb.next === 0 ? i + 1 : hb.next; continue; }
+      if (hb && (isBlockTagLine(raw) || completeTag(raw))) { out.push(hb.html); i = hb.next === 0 ? i + 1 : hb.next; continue; }
     }
     { const tb = tableBlock(lines, i, (t) => finishInline(renderInline(t, refs), refs)); if (tb) { out.push(tb.html); i = tb.next; continue; } }
     const indent = raw.match(/^ {0,3}/)[0].length;
@@ -88,6 +88,12 @@ export function renderBlocks(src, refs, pass) {
     else out.push('<p>' + renderInline(para.join('\n'), refs) + '</p>');
   }
   return out.join('\n') + (out.length ? '\n' : '');
+}
+
+// A handful of leading constructs are real HTML blocks regardless of closing '>'.
+function isBlockTagLine(raw) {
+  const t = raw.replace(/^ {0,3}/, '');
+  return /^(<!--|<\?|<!\[CDATA\[)/.test(t) || /^<(script|pre|style|textarea)(?=[\s>\/]|$)/i.test(t);
 }
 
 function taskPrefix(line) {
